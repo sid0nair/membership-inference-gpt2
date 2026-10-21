@@ -26,3 +26,8 @@ models/
 data/
 .DS_Store
 .ipynb_checkpoints/
+
+# Caches and submissions
+cache/
+*.npz
+*.zip

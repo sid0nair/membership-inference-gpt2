@@ -1,11 +1,15 @@
 # Tested with Python 3.11 on CPU, Apple Silicon and CUDA.
 torch==2.8.0
 transformers==4.56.2
+peft==0.13.2
+accelerate==1.10.1
 datasets==4.1.1
 safetensors==0.8.0
 numpy==1.26.4
 scikit-learn==1.7.2
+scipy
 matplotlib==3.11.1
 tqdm==4.66.4
 notebook==7.6.2
 ipykernel==6.31.0
+pytest
