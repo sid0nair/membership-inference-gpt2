@@ -76,6 +76,31 @@ score   = log N(u; μ_in, s²_in) − log N(u; μ_out, s²_out)
 
 κ, the reference rule and the decision to submit were all fixed on shadow "mock" targets before any held-out score was requested, and the method was submitted once.
 
+### Methods implemented and their sources
+
+Every method below is implemented in this repo. The ones marked *adapted* differ from the paper in a way the notebook documents.
+
+| Method | Role here | Where | Source |
+|---|---|---|---|
+| Loss attack | baseline | `01`, `02` | [Yeom et al., 2018](https://arxiv.org/abs/1709.01604) |
+| Min-K% | reference-free baseline | `01` | [Shi et al., 2024](https://arxiv.org/abs/2310.16789) |
+| zlib-normalized loss | reference-free baseline | `01` | [Carlini et al., 2021](https://arxiv.org/abs/2012.07805) |
+| Reference-model (difficulty-calibrated) loss: mean loss gap × √T | first strong attack; OUT-side baseline throughout | `02`, `03`, `attacks.mean_gap` | [Watson et al., 2022](https://arxiv.org/abs/2111.08440); [Mireshghallah et al., 2022](https://arxiv.org/abs/2203.03929) |
+| Sliding-window voting | early aggregation over token windows (*own design*) | `02` | none |
+| Gradient-norm signal | white-box feature, dropped | `02` | [Nasr et al., 2019](https://arxiv.org/abs/1812.00910) |
+| Online LiRA with complementary IN/OUT shadow pairs | **core of the final attack** | `02`, `03`, `data.assign_complementary` | [Carlini et al., 2022](https://arxiv.org/abs/2112.03570) |
+| Per-text Gaussian LR with shrunk (moderated) variances | **final attack** (*adapted*: LiRA's Gaussian test with per-text variances shrunk toward pooled ones, in the form of empirical-Bayes moderated variances) | `03`, `attacks.gaussian_lr` | [Carlini et al., 2022](https://arxiv.org/abs/2112.03570); [Smyth, 2004](https://doi.org/10.2202/1544-6115.1027) |
+| Shared-variance and OUT-only LR | variants of the final attack | `06`, `attacks.shared_variance_lr` | [Carlini et al., 2022](https://arxiv.org/abs/2112.03570) (fixed- and offline-variance variants) |
+| Token-level Gaussian LR | variant | `06` | own design, after [Carlini et al., 2022](https://arxiv.org/abs/2112.03570) |
+| Reference-subset bagging | variant | `04` | [Breiman, 1996](https://doi.org/10.1007/BF00058655) |
+| RMIA | alternative attack (online, trimmed reference mean) | `06`, `attacks.rmia_log_ratio` | [Zarifzadeh et al., 2024](https://arxiv.org/abs/2312.03262) |
+| EZ-MIA (error-zone ratio) | alternative attack, checked against the official code | `05`, `attacks.ez_error_zone_ratio` | [Ilić et al., 2026](https://arxiv.org/abs/2601.12104) |
+| Logistic ensembles of LR, mean gap, RMIA | combination | `07` | stacking on shadow-model membership, as in [Shokri et al., 2017](https://arxiv.org/abs/1610.05820) |
+| Tail-focused pairwise ranking combiner | combination optimized for the low-FPR region | `04`, `combine.tail_rank_fit` | partial-AUC optimization, [Narasimhan & Agarwal, 2013](https://proceedings.mlr.press/v28/narasimhan13.html) |
+| G-Drift | alternative white-box signal (*adapted* to plain text and LoRA; raw and reference-calibrated) | `07` | [Ranjan et al., 2026](https://arxiv.org/abs/2604.00419) |
+| ReCaLL | alternative signal (*adapted*: non-member prefixes from WikiText validation, reference-calibrated) | `08`, `04` | [Xie et al., 2024](https://arxiv.org/abs/2406.15968) |
+| Target calibration on known non-members | quantile-regression idea, tested as a gate and a variance correction | `08` | [Bertran et al., 2023](https://arxiv.org/abs/2307.03694) |
+
 ### Results (TPR at FPR < 1%)
 
 | Method | Development | Held-out |
@@ -161,12 +186,22 @@ scores = gaussian_lr(t, L, P, Pin, kappa=8)
 
 ## References
 
-- Carlini et al. (2022). *Membership Inference Attacks From First Principles* (LiRA). IEEE S&P.
-- Zarifzadeh et al. (2024). *Low-Cost High-Power Membership Inference Attacks* (RMIA). ICML.
-- Bertran et al. (2023). *Scalable Membership Inference Attacks via Quantile Regression.* NeurIPS.
-- Xie et al. (2024). *ReCaLL: Membership Inference via Relative Conditional Log-Likelihoods.* EMNLP.
-- Ranjan et al. (2026). *G-Drift MIA: Membership Inference via Gradient-Induced Feature Drift in LLMs.* arXiv:2604.00419.
-- Shi et al. (2024). *Detecting Pretraining Data from Large Language Models* (Min-K%). ICLR.
-- Carlini et al. (2021). *Extracting Training Data from Large Language Models.* USENIX Security.
-- Merity et al. (2016). *Pointer Sentinel Mixture Models* (WikiText-103).
-- Hu et al. (2022). *LoRA: Low-Rank Adaptation of Large Language Models.* ICLR.
+- Yeom, Giacomelli, Fredrikson, Jha (2018). [*Privacy Risk in Machine Learning: Analyzing the Connection to Overfitting.*](https://arxiv.org/abs/1709.01604) IEEE CSF.
+- Shokri, Stronati, Song, Shmatikov (2017). [*Membership Inference Attacks Against Machine Learning Models.*](https://arxiv.org/abs/1610.05820) IEEE S&P.
+- Nasr, Shokri, Houmansadr (2019). [*Comprehensive Privacy Analysis of Deep Learning.*](https://arxiv.org/abs/1812.00910) IEEE S&P.
+- Carlini et al. (2021). [*Extracting Training Data from Large Language Models.*](https://arxiv.org/abs/2012.07805) USENIX Security.
+- Watson, Guo, Cormode, Sablayrolles (2022). [*On the Importance of Difficulty Calibration in Membership Inference Attacks.*](https://arxiv.org/abs/2111.08440) ICLR.
+- Mireshghallah et al. (2022). [*Quantifying Privacy Risks of Masked Language Models Using Membership Inference Attacks.*](https://arxiv.org/abs/2203.03929) EMNLP.
+- Carlini et al. (2022). [*Membership Inference Attacks From First Principles*](https://arxiv.org/abs/2112.03570) (LiRA). IEEE S&P.
+- Smyth (2004). [*Linear Models and Empirical Bayes Methods for Assessing Differential Expression in Microarray Experiments.*](https://doi.org/10.2202/1544-6115.1027) SAGMB (moderated variances).
+- Breiman (1996). [*Bagging Predictors.*](https://doi.org/10.1007/BF00058655) Machine Learning.
+- Narasimhan, Agarwal (2013). [*A Structural SVM Based Approach for Optimizing Partial AUC.*](https://proceedings.mlr.press/v28/narasimhan13.html) ICML.
+- Bertran et al. (2023). [*Scalable Membership Inference Attacks via Quantile Regression.*](https://arxiv.org/abs/2307.03694) NeurIPS.
+- Zarifzadeh, Liu, Shokri (2024). [*Low-Cost High-Power Membership Inference Attacks*](https://arxiv.org/abs/2312.03262) (RMIA). ICML.
+- Shi et al. (2024). [*Detecting Pretraining Data from Large Language Models*](https://arxiv.org/abs/2310.16789) (Min-K%). ICLR.
+- Xie et al. (2024). [*ReCaLL: Membership Inference via Relative Conditional Log-Likelihoods.*](https://arxiv.org/abs/2406.15968) EMNLP.
+- Ilić, Stanojević, Cvejoski (2026). [*Powerful Training-Free Membership Inference Against Fine-Tuned Autoregressive Language Models*](https://arxiv.org/abs/2601.12104) (EZ-MIA). ACL.
+- Ranjan, Grover, Lin, Polyzou (2026). [*G-Drift MIA: Membership Inference via Gradient-Induced Feature Drift in LLMs.*](https://arxiv.org/abs/2604.00419) arXiv.
+- Hu et al. (2022). [*LoRA: Low-Rank Adaptation of Large Language Models.*](https://arxiv.org/abs/2106.09685) ICLR.
+- Merity et al. (2016). [*Pointer Sentinel Mixture Models*](https://arxiv.org/abs/1609.07843) (WikiText-103).
+- Radford et al. (2019). *Language Models are Unsupervised Multitask Learners* (GPT-2).
