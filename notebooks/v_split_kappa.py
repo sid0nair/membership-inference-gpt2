@@ -1,6 +1,8 @@
 # V-SPLIT — Separate shrinkage for IN and OUT variances (κ_in, κ_out). Run after V-BATCH and V-MONO (same runtime).
-# Motivation: ~4 IN vs ~8 OUT references per text, so the IN variance is the noisier estimate; one κ shrinks both equally.
-# Chosen with validation feedback (κ=6 best of 4/6/8/16/32): leaderboard optimization. Compare against raw κ=6 (76.7).
+# Equal κ already shrinks IN more (typical text at κ=6: IN weight 6/(3+6)=67%, OUT 6/(7+6)=46%); separate κ values change
+# the prior strength beyond that. Local tuning informed by validation feedback (κ=6 best of 4/6/8/16/32), not evidence
+# about the cause of the remaining false positives. One change at a time, against raw κ=6 (76.7):
+#   A: κ_in=8, κ_out=6 (stronger IN shrinkage only)     B: κ_in=6, κ_out=4 (weaker OUT shrinkage only)
 for v in ("build", "MT_VAL", "L_VAL", "s8", "zip_scores", "OUTB", "NAMES4", "near_cutoff"):
     assert v in globals(), f"run V-BATCH and V-MONO first ({v} missing)"
 
@@ -31,7 +33,16 @@ assert np.allclose(lr_split(MT_VAL, L_VAL, P, Pin, 8.0, 8.0), s8, rtol=0, atol=1
 print("n_in per val text:", dict(zip(*np.unique((Pin & np.isfinite(P)).sum(0), return_counts=True))),
       "| n_out:", dict(zip(*np.unique((~Pin & np.isfinite(P)).sum(0), return_counts=True))))
 
-GRID = [(8.0, 4.0), (12.0, 4.0), (4.0, 8.0)]          # (κ_in, κ_out); fixed before any validation score
+GRID = [(8.0, 6.0), (6.0, 4.0)]          # (κ_in, κ_out); fixed before any validation score
+
+def cutoff_band(s, base, lo=767, hi=776):
+    """Top-k set changes for every k in the band where the 76.7% cutoff can sit (767 members + ≤9 non-members)."""
+    rs, rb = rankdata(-s, method="ordinal"), rankdata(-base, method="ordinal")
+    changed = [k for k in range(lo, hi + 1) if set(np.flatnonzero(rs <= k)) != set(np.flatnonzero(rb <= k))]
+    kth = np.sort(s)[::-1]
+    ties = int(sum((np.isclose(s, kth[k - 1], rtol=0, atol=1e-12)).sum() > 1 for k in range(lo, hi + 1)))
+    return {"top-k sets changed for k in 767–776": f"{len(changed)}/10 {changed[:10]}", "ties at k in 767–776": ties,
+            "texts entering/leaving top-776": int(((rs <= hi) != (rb <= hi)).sum())}
 P_dev = np.vstack([np.stack([mean_loss(n) for n in NAMES4]), FIX4])
 Pin_dev = np.vstack([np.stack([MEM[n]["train"] for n in NAMES4]), np.zeros(FIX4.shape, bool)])
 dev6 = tpr_strict(LABELS, lr_frozen(DEV_MT, DEV_L, P_dev, Pin_dev, kappa=6.0))
@@ -49,6 +60,7 @@ for ki, ko in GRID:
     r["mock Δ vs κ=6 (p4A..p6B)"] = " ".join(f"{d:+.3f}" for d in dm); r["mock mean Δ"] = float(np.mean(dm))
     s = lr_split(MT_VAL, L_VAL, P, Pin, ki, ko)
     r.update({f"val {k}": v for k, v in near_cutoff(s, s6).items()})
+    r.update({f"val {k}": v for k, v in cutoff_band(s, s6).items()})
     pred = ROOT / "data" / "val" / f"prediction_{name}.csv"
     zp = ROOT / f"project_phase2_val_submission_{name}.zip"
     np.savetxt(pred, s, fmt="%.17g")
