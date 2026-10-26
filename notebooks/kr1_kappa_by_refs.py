@@ -1,5 +1,5 @@
 # KR-1 — Joint comparison of reference set × variance shrinkage κ. Dev + fresh mocks only; no validation use.
-# Run in notebook 04 after N-2, N-3, N-4 and P-2 (P-2 only loads the cached p5/p6 losses; no GPU work if cached).
+# Run in any notebook that has run N-2, N-3, N-4 (e.g. 04, 07, 08). Loads p5/p6 caches itself; CPU only.
 # Pre-declared (before looking at any output):
 #   configs   : reference set ∈ {4 pairs (LR4's), 6 pairs} × κ ∈ {2, 8, 32, ∞}; κ=∞ uses the pooled side-specific
 #               variance (× the same 1+1/n factor). Separate IN/OUT variances, √T length scaling, fixed OUT refs and
@@ -16,7 +16,16 @@ KAPPAS = (2.0, 8.0, 32.0, np.inf)
 PAIRS6 = list(PAIRS) + [("p5A", "p5B"), ("p6A", "p6B")]
 REFSETS = {"4 pairs": list(PAIRS), "6 pairs": PAIRS6}
 FRESH_MOCKS = ["p4A", "p4B", "p5A", "p5B", "p6A", "p6B"]
-assert all(n in REF and n in MEM for p in PAIRS6 for n in p), "load p5/p6 caches first (P-2)"
+# Load p5/p6 cached losses and memberships if this runtime does not have them yet (CPU only, no model loading).
+for n in ("p5A", "p5B", "p6A", "p6B"):
+    if n not in REF:
+        REF[n] = {ph: split_npz(OLD / f"{ph}_shadow_{n}_losses.npz") for ph in PHASES}
+    if n not in MEM:
+        MEM[n] = membership(shadow_texts(n))
+for a, b in PAIRS6:
+    assert (MEM[a]["train"] ^ MEM[b]["train"]).all() or a == "inA", (a, b)
+    assert all(r.shape == t.shape for r, t in zip(REF[a]["train"], TGT["train"])), a
+assert all(n in REF and n in MEM for p in PAIRS6 for n in p)
 
 def lr_kappa(mt, L, P, Pin, kappa):
     """Frozen LR with κ as a parameter; κ=∞ → per-side pooled variance × (1+1/n). Identical to lr_frozen for finite κ."""
